@@ -1,10 +1,8 @@
-
 <?php
-error_log("=== НАЧАЛО ОБРАБОТКИ ===");
-error_log("Метод запроса: " . $_SERVER['REQUEST_METHOD']);
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    error_log("POST данные: " . print_r($_POST, true));
-}
+/**
+ * Главный обработчик формы
+ */
+
 session_start();
 require_once 'config.php';
 
@@ -17,9 +15,9 @@ function validateForm($data) {
         $errors[] = 'ФИО обязательно для заполнения';
     } elseif (!preg_match('/^[а-яА-ЯёЁa-zA-Z\s-]+$/u', $data['full_name'])) {
         $errors[] = 'ФИО должно содержать только буквы, пробелы и дефисы';
-    } elseif (strlen($data['full_name']) > 150) {
-    $errors[] = 'ФИО не должно превышать 150 символов';
-}
+    } elseif (mb_strlen($data['full_name']) > 150) {
+        $errors[] = 'ФИО не должно превышать 150 символов';
+    }
     
     // 2. Валидация телефона
     if (empty($data['phone'])) {
@@ -174,9 +172,6 @@ try {
     $_SESSION['errors'] = ["Произошла ошибка при сохранении. Пожалуйста, попробуйте позже."];
     
     // Перенаправляем обратно на форму
-    //header("Location: form.php");
-    //exit;
-    echo "✅ Успешно сохранено! ID записи: $application_id";
-echo "<br><a href='form.php'>Вернуться к форме</a>";
-    error_log("Ошибка сохранения: " . $e->getMessage());
+    header("Location: form.php");
+    exit;
 }
