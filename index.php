@@ -3,6 +3,11 @@
  * Главный обработчик формы
  */
 
+// Включаем отображение ошибок (на время отладки)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once 'config.php';
 
@@ -16,8 +21,8 @@ function validateForm($data) {
     } elseif (!preg_match('/^[а-яА-ЯёЁa-zA-Z\s-]+$/u', $data['full_name'])) {
         $errors[] = 'ФИО должно содержать только буквы, пробелы и дефисы';
     } elseif (strlen($data['full_name']) > 150) {
-    $errors[] = 'ФИО не должно превышать 150 символов';
-}
+        $errors[] = 'ФИО не должно превышать 150 символов';
+    }
     
     // 2. Валидация телефона
     if (empty($data['phone'])) {
@@ -46,15 +51,15 @@ function validateForm($data) {
     }
     
     // 5. Валидация пола
-    $allowed_genders = ['male', 'female', 'other'];
+    $allowed_genders = ['male', 'female'];
     if (empty($data['gender'])) {
         $errors[] = 'Пол обязателен для выбора';
     } elseif (!in_array($data['gender'], $allowed_genders)) {
         $errors[] = 'Недопустимое значение пола';
     }
     
-    // 6. Валидация языков программирования (по ID)
-    $allowed_languages = range(1, 12); // ID от 1 до 12
+    // 6. Валидация языков программирования
+    $allowed_languages = range(1, 12);
     
     if (empty($data['languages']) || !is_array($data['languages'])) {
         $errors[] = 'Выберите хотя бы один язык программирования';
@@ -67,8 +72,10 @@ function validateForm($data) {
         }
     }
     
-    // 7. Валидация биографии (НЕ обязательное поле)
-    if (!empty($data['biography']) && strlen($data['biography']) > 5000) {
+    // 7. Валидация биографии
+    if (empty($data['biography'])) {
+        $errors[] = 'Биография обязательна для заполнения';
+    } elseif (strlen($data['biography']) > 5000) {
         $errors[] = 'Биография не должна превышать 5000 символов';
     }
     
@@ -119,15 +126,21 @@ try {
         (:full_name, :phone, :email, :birth_date, :gender, :biography, :contract_accepted)
     ");
     
-    $stmt->execute([
+    $contract_accepted = isset($_POST['contract_accepted']) ? 1 : 0;
+    
+    $result = $stmt->execute([
         ':full_name' => $_POST['full_name'],
         ':phone' => $_POST['phone'],
         ':email' => $_POST['email'],
         ':birth_date' => $_POST['birth_date'],
         ':gender' => $_POST['gender'],
-        ':biography' => $_POST['biography'] ?? '',
-        ':contract_accepted' => isset($_POST['contract_accepted']) ? 1 : 0
+        ':biography' => $_POST['biography'],
+        ':contract_accepted' => $contract_accepted
     ]);
+    
+    if (!$result) {
+        throw new Exception("Ошибка при вставке основной информации");
+    }
     
     // Получаем ID новой записи
     $application_id = $pdo->lastInsertId();
@@ -139,10 +152,14 @@ try {
     ");
     
     foreach ($_POST['languages'] as $lang_id) {
-        $link_stmt->execute([
+        $result = $link_stmt->execute([
             ':app_id' => $application_id,
             ':lang_id' => $lang_id
         ]);
+        
+        if (!$result) {
+            throw new Exception("Ошибка при вставке языка с ID: $lang_id");
+        }
     }
     
     // Подтверждаем транзакцию
@@ -161,17 +178,37 @@ try {
     
 } catch (PDOException $e) {
     // В случае ошибки отменяем транзакцию
-    if ($pdo->inTransaction()) {
+    if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
     
     // Логируем ошибку
     error_log("Database error in index.php: " . $e->getMessage());
+    error_log("SQL State: " . $e->errorInfo[0]);
+    error_log("Error Code: " . $e->errorInfo[1]);
+    error_log("Error Message: " . $e->errorInfo[2]);
     
     // Сохраняем сообщение об ошибке
-    $_SESSION['errors'] = ["Произошла ошибка при сохранении. Пожалуйста, попробуйте позже."];
+    $_SESSION['errors'] = ["Произошла ошибка при сохранении: " . $e->getMessage()];
+    
+    // Перенаправляем обратно на форму
+    header("Location: form.php");
+    exit;
+    
+} catch (Exception $e) {
+    // В случае ошибки отменяем транзакцию
+    if (isset($pdo) && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    
+    // Логируем ошибку
+    error_log("General error in index.php: " . $e->getMessage());
+    
+    // Сохраняем сообщение об ошибке
+    $_SESSION['errors'] = ["Произошла ошибка: " . $e->getMessage()];
     
     // Перенаправляем обратно на форму
     header("Location: form.php");
     exit;
 }
+?>
