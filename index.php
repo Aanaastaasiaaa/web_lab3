@@ -1,5 +1,10 @@
 
 <?php
+error_log("=== НАЧАЛО ОБРАБОТКИ ===");
+error_log("Метод запроса: " . $_SERVER['REQUEST_METHOD']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    error_log("POST данные: " . print_r($_POST, true));
+}
 session_start();
 require_once 'config.php';
 
@@ -169,6 +174,9 @@ try {
     $_SESSION['errors'] = ["Произошла ошибка при сохранении. Пожалуйста, попробуйте позже."];
     
     // Перенаправляем обратно на форму
-    header("Location: form.php");
-    exit;
+    //header("Location: form.php");
+    //exit;
+    echo "✅ Успешно сохранено! ID записи: $application_id";
+echo "<br><a href='form.php'>Вернуться к форме</a>";
+    error_log("Ошибка сохранения: " . $e->getMessage());
 }
