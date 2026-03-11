@@ -1,17 +1,5 @@
 
 <?php
-// ВРЕМЕННО: включаем отображение всех ошибок
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
-// ВРЕМЕННО: смотрим, что пришло из формы
-file_put_contents('debug.log', "=== " . date('Y-m-d H:i:s') . " ===\n", FILE_APPEND);
-file_put_contents('debug.log', "POST: " . print_r($_POST, true), FILE_APPEND);
-file_put_contents('debug.log', "REQUEST_METHOD: " . $_SERVER['REQUEST_METHOD'] . "\n", FILE_APPEND);
-
-session_start();
-require_once 'config.php');
 session_start();
 require_once 'config.php';
 
