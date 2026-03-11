@@ -6,7 +6,16 @@ error_reporting(E_ALL);
 session_start();
 require_once 'config.php';
 
-// Функция валидации (без изменений)
+echo "<!DOCTYPE html><html><head><style>
+    body { background: #1e1e2e; color: #fff; font-family: monospace; padding: 20px; }
+    .success { color: #a6e3a1; }
+    .error { color: #f38ba8; }
+    .info { color: #89b4fa; }
+    pre { background: #313244; padding: 10px; border-radius: 5px; }
+</style></head><body>";
+echo "<h2>🔍 РЕЖИМ ОТЛАДКИ</h2>";
+
+// Функция валидации
 function validateForm($data) {
     $errors = [];
     
@@ -71,6 +80,7 @@ function validateForm($data) {
 
 // GET запрос - показываем форму
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    echo "<p class='info'>📋 GET запрос - показываем форму</p>";
     unset($_SESSION['form_data']);
     unset($_SESSION['errors']);
     unset($_SESSION['success_message']);
@@ -78,20 +88,44 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+echo "<p class='info'>📨 POST запрос получен</p>";
+
 // Сохраняем данные
 $_SESSION['form_data'] = $_POST;
 
+echo "<h3>📦 Данные из формы:</h3>";
+echo "<pre>";
+print_r($_POST);
+echo "</pre>";
+
 // Валидация
+echo "<h3>🔍 Проверка валидации...</h3>";
 $errors = validateForm($_POST);
+
 if (!empty($errors)) {
+    echo "<p class='error'>❌ Ошибки валидации:</p>";
+    echo "<pre>";
+    print_r($errors);
+    echo "</pre>";
+    
     $_SESSION['errors'] = $errors;
-    header('Location: form.php');
+    echo "<p>🔙 Возвращаем на форму</p>";
+    echo "<script>setTimeout(() => { window.location.href = 'form.php'; }, 3000);</script>";
     exit;
 }
 
+echo "<p class='success'>✅ Валидация пройдена</p>";
+
 // Сохранение в БД
+echo "<h3>💾 Сохраняем в БД...</h3>";
+
 try {
     $pdo = getDB();
+    echo "<p class='success'>✅ Подключение к БД успешно</p>";
+    
+    // Проверяем структуру таблицы
+    $columns = $pdo->query("DESCRIBE applications")->fetchAll(PDO::FETCH_COLUMN);
+    echo "<p>📊 Поля таблицы: " . implode(', ', $columns) . "</p>";
     
     // Вставка
     $stmt = $pdo->prepare("
@@ -102,7 +136,20 @@ try {
     
     $contract = isset($_POST['contract_accepted']) ? 1 : 0;
     
-    $stmt->execute([
+    echo "<p>📝 Выполняем запрос с данными:</p>";
+    echo "<pre>";
+    print_r([
+        $_POST['full_name'],
+        $_POST['phone'],
+        $_POST['email'],
+        $_POST['birth_date'],
+        $_POST['gender'],
+        $_POST['biography'],
+        $contract
+    ]);
+    echo "</pre>";
+    
+    $result = $stmt->execute([
         $_POST['full_name'],
         $_POST['phone'],
         $_POST['email'],
@@ -112,40 +159,64 @@ try {
         $contract
     ]);
     
+    if (!$result) {
+        throw new Exception("Ошибка выполнения запроса");
+    }
+    
     $application_id = $pdo->lastInsertId();
+    echo "<p class='success'>✅ Запись создана! ID: $application_id</p>";
+    
+    // Проверяем, что запись действительно есть
+    $check = $pdo->prepare("SELECT * FROM applications WHERE id = ?");
+    $check->execute([$application_id]);
+    $record = $check->fetch();
+    
+    if ($record) {
+        echo "<p class='success'>✅ Запись найдена в БД:</p>";
+        echo "<pre>";
+        print_r($record);
+        echo "</pre>";
+    } else {
+        echo "<p class='error'>❌ Запись НЕ найдена после вставки!</p>";
+    }
     
     // Вставка языков
     if (!empty($_POST['languages'])) {
+        echo "<p>📝 Вставляем языки:</p>";
         $link_stmt = $pdo->prepare("
             INSERT INTO application_languages (application_id, language_id) 
             VALUES (?, ?)
         ");
         
         foreach ($_POST['languages'] as $lang_id) {
+            echo "  - язык ID: $lang_id<br>";
             $link_stmt->execute([$application_id, $lang_id]);
         }
+        echo "<p class='success'>✅ Языки сохранены</p>";
     }
     
-    // УСПЕХ - очищаем и сохраняем
-    $_SESSION['success_message'] = "Сохранено! ID: $application_id";
+    // Успех
+    $_SESSION['success_message'] = "Анкета успешно сохранена! ID: $application_id";
     unset($_SESSION['form_data']);
     unset($_SESSION['errors']);
     
-    // ПРИНУДИТЕЛЬНАЯ ЗАПИСЬ СЕССИИ
-    session_write_close();
-    
-    header('Location: form.php');
-    exit;
+    echo "<p class='success'>✅ ГОТОВО! Перенаправляем через 3 секунды...</p>";
+    echo "<script>setTimeout(() => { window.location.href = 'form.php'; }, 3000);</script>";
     
 } catch (Exception $e) {
-    // ОШИБКА - показываем
+    echo "<p class='error'>❌ ОШИБКА: " . $e->getMessage() . "</p>";
+    echo "<pre>";
+    echo "Файл: " . $e->getFile() . "\n";
+    echo "Строка: " . $e->getLine() . "\n";
+    echo "Трассировка:\n" . $e->getTraceAsString();
+    echo "</pre>";
+    
     error_log("ERROR: " . $e->getMessage());
     
-    $_SESSION['errors'] = ["Ошибка: " . $e->getMessage()];
-    
-    session_write_close();
-    
-    header('Location: form.php');
-    exit;
+    $_SESSION['errors'] = ["Ошибка БД: " . $e->getMessage()];
+    echo "<p>🔙 Возвращаем на форму через 5 секунд...</p>";
+    echo "<script>setTimeout(() => { window.location.href = 'form.php'; }, 5000);</script>";
 }
+
+echo "</body></html>";
 ?>
