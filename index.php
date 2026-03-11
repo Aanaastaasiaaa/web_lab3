@@ -1,58 +1,158 @@
 <?php
+// Включаем отображение ошибок
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once 'config.php';
 
-// Если форма отправлена
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    try {
-        $pdo = getDB();
-        
-        $stmt = $pdo->prepare("
-            INSERT INTO applications 
-            (full_name, phone, email, birth_date, gender, biography, contract_accepted) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ");
-        
-        $result = $stmt->execute([
-            $_POST['full_name'] ?? 'тест',
-            $_POST['phone'] ?? '123',
-            $_POST['email'] ?? 'test@test.com',
-            $_POST['birth_date'] ?? '2000-01-01',
-            $_POST['gender'] ?? 'male',
-            $_POST['biography'] ?? 'тест',
-            isset($_POST['contract_accepted']) ? 1 : 0
-        ]);
-        
-        if ($result) {
-            $id = $pdo->lastInsertId();
-            echo "✅ СОХРАНЕНО! ID: $id";
-            
-            // Проверим, что запись действительно есть
-            $check = $pdo->query("SELECT * FROM applications WHERE id = $id")->fetch();
-            echo "<pre>";
-            print_r($check);
-            echo "</pre>";
-        } else {
-            echo "❌ НЕ сохранилось";
-            print_r($stmt->errorInfo());
-        }
-        
-    } catch (Exception $e) {
-        echo "❌ ОШИБКА: " . $e->getMessage();
+// Функция валидации
+function validateForm($data) {
+    $errors = [];
+    
+    // 1. ФИО
+    if (empty($data['full_name'])) {
+        $errors[] = 'ФИО обязательно для заполнения';
+    } elseif (!preg_match('/^[а-яА-ЯёЁa-zA-Z\s-]+$/u', $data['full_name'])) {
+        $errors[] = 'ФИО должно содержать только буквы, пробелы и дефисы';
+    } elseif (strlen($data['full_name']) > 150) {
+        $errors[] = 'ФИО не должно превышать 150 символов';
     }
+    
+    // 2. Телефон
+    if (empty($data['phone'])) {
+        $errors[] = 'Телефон обязателен для заполнения';
+    } elseif (!preg_match('/^[\+\d\s\-\(\)]{10,20}$/', $data['phone'])) {
+        $errors[] = 'Телефон должен содержать от 10 до 20 символов';
+    }
+    
+    // 3. Email
+    if (empty($data['email'])) {
+        $errors[] = 'Email обязателен для заполнения';
+    } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+        $errors[] = 'Некорректный формат email';
+    }
+    
+    // 4. Дата рождения
+    if (empty($data['birth_date'])) {
+        $errors[] = 'Дата рождения обязательна';
+    } else {
+        $date = DateTime::createFromFormat('Y-m-d', $data['birth_date']);
+        if (!$date || $date->format('Y-m-d') !== $data['birth_date']) {
+            $errors[] = 'Некорректный формат даты';
+        } elseif ($date > new DateTime()) {
+            $errors[] = 'Дата рождения не может быть в будущем';
+        }
+    }
+    
+    // 5. Пол
+    if (empty($data['gender'])) {
+        $errors[] = 'Пол обязателен для выбора';
+    } elseif (!in_array($data['gender'], ['male', 'female'])) {
+        $errors[] = 'Недопустимое значение пола';
+    }
+    
+    // 6. Языки
+    if (empty($data['languages']) || !is_array($data['languages'])) {
+        $errors[] = 'Выберите хотя бы один язык программирования';
+    } else {
+        foreach ($data['languages'] as $lang_id) {
+            if (!in_array((int)$lang_id, range(1, 12))) {
+                $errors[] = 'Выбран недопустимый язык программирования';
+                break;
+            }
+        }
+    }
+    
+    // 7. Биография
+    if (empty($data['biography'])) {
+        $errors[] = 'Биография обязательна для заполнения';
+    } elseif (strlen($data['biography']) > 5000) {
+        $errors[] = 'Биография не должна превышать 5000 символов';
+    }
+    
+    // 8. Чекбокс
+    if (!isset($data['contract_accepted'])) {
+        $errors[] = 'Необходимо подтвердить ознакомление с контрактом';
+    }
+    
+    return $errors;
+}
+
+// Если GET запрос - показываем форму
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    unset($_SESSION['form_data']);
+    unset($_SESSION['errors']);
+    unset($_SESSION['success_message']);
+    include 'form.php';
     exit;
 }
+
+// Сохраняем данные формы в сессию
+$_SESSION['form_data'] = $_POST;
+
+// Валидация
+$errors = validateForm($_POST);
+
+if (!empty($errors)) {
+    $_SESSION['errors'] = $errors;
+    header('Location: form.php');
+    exit;
+}
+
+// СОХРАНЕНИЕ В БД (упрощенная версия, как в тесте)
+try {
+    $pdo = getDB();
+    
+    // Простая вставка БЕЗ транзакции для надежности
+    $stmt = $pdo->prepare("
+        INSERT INTO applications 
+        (full_name, phone, email, birth_date, gender, biography, contract_accepted) 
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ");
+    
+    $contract = isset($_POST['contract_accepted']) ? 1 : 0;
+    
+    $result = $stmt->execute([
+        $_POST['full_name'],
+        $_POST['phone'],
+        $_POST['email'],
+        $_POST['birth_date'],
+        $_POST['gender'],
+        $_POST['biography'],
+        $contract
+    ]);
+    
+    if (!$result) {
+        throw new Exception("Ошибка при вставке основной информации");
+    }
+    
+    $application_id = $pdo->lastInsertId();
+    
+    // Вставляем языки
+    if (!empty($_POST['languages'])) {
+        $link_stmt = $pdo->prepare("
+            INSERT INTO application_languages (application_id, language_id) 
+            VALUES (?, ?)
+        ");
+        
+        foreach ($_POST['languages'] as $lang_id) {
+            $link_stmt->execute([$application_id, $lang_id]);
+        }
+    }
+    
+    $_SESSION['success_message'] = "Анкета успешно сохранена! ID записи: $application_id";
+    
+    // Очищаем данные формы
+    unset($_SESSION['form_data']);
+    unset($_SESSION['errors']);
+    
+    header('Location: form.php');
+    exit;
+    
+} catch (Exception $e) {
+    // Показываем ошибку
+    die("<h2>ОШИБКА СОХРАНЕНИЯ:</h2><pre>" . $e->getMessage() . "</pre>");
+}
 ?>
-<form method="POST">
-    <input type="text" name="full_name" placeholder="ФИО" value="Тест"><br>
-    <input type="text" name="phone" value="1234567890"><br>
-    <input type="email" name="email" value="test@test.com"><br>
-    <input type="date" name="birth_date" value="2000-01-01"><br>
-    <select name="gender">
-        <option value="male">Мужской</option>
-        <option value="female">Женский</option>
-    </select><br>
-    <textarea name="biography">Тест</textarea><br>
-    <input type="checkbox" name="contract_accepted" value="1" checked> Согласен<br>
-    <button type="submit">Сохранить</button>
-</form>
