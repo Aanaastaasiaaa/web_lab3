@@ -282,13 +282,12 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>📝 Анкета программиста</h1>
-            <p>Заполните форму для участия в сообществе</p>
+            <h1>Анкета</h1>
+            <p>Заполните форму</p>
         </div>
         
         <div class="form-content">
             <?php
-            session_start();
             if (isset($_SESSION['success_message'])): ?>
                 <div class="success-message">
                     <?= $_SESSION['success_message'] ?>
@@ -377,16 +376,16 @@
                         <option value="11" <?= (isset($_SESSION['form_data']['languages']) && in_array('11', $_SESSION['form_data']['languages'])) ? 'selected' : '' ?>>Scala</option>
                         <option value="12" <?= (isset($_SESSION['form_data']['languages']) && in_array('12', $_SESSION['form_data']['languages'])) ? 'selected' : '' ?>>Go</option>
                     </select>
-                    <div class="hint">Держите Ctrl (Cmd на Mac) для выбора нескольких</div>
+                    <div class="hint">Держите Ctrl для выбора нескольких</div>
                 </div>
                 
                 <!-- 7. Биография (ОБЯЗАТЕЛЬНАЯ) -->
                 <div class="form-group">
                     <label for="biography" class="required">Биография</label>
                     <textarea id="biography" name="biography" rows="6" 
-                              placeholder="Расскажите о своем опыте, образовании, проектах и интересах..." 
+                              placeholder="Расскажите о себе..." 
                               required><?= htmlspecialchars($_SESSION['form_data']['biography'] ?? '') ?></textarea>
-                    <div class="hint">Обязательное поле, максимум 5000 символов</div>
+                    <div class="hint">Максимум 5000 символов</div>
                 </div>
                 
                 <!-- 8. Чекбокс с контрактом -->
@@ -394,7 +393,7 @@
                     <div class="checkbox-group">
                         <input type="checkbox" id="contract" name="contract_accepted" value="1" required
                             <?= isset($_SESSION['form_data']['contract_accepted']) ? 'checked' : '' ?>>
-                        <label for="contract" class="required">Я ознакомлен(а) с контрактом и принимаю условия</label>
+                        <label for="contract" class="required">Я ознакомлен(а) с условиями</label>
                     </div>
                 </div>
                 
