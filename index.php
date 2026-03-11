@@ -6,81 +6,81 @@ error_reporting(E_ALL);
 session_start();
 require_once 'config.php';
 
-echo "<!DOCTYPE html><html><head><style>
-    body { background: #1e1e2e; color: #fff; font-family: monospace; padding: 20px; }
-    .success { color: #a6e3a1; }
-    .error { color: #f38ba8; }
-    .info { color: #89b4fa; }
-    pre { background: #313244; padding: 10px; border-radius: 5px; }
-</style></head><body>";
-echo "<h2>🔍 РЕЖИМ ОТЛАДКИ</h2>";
-
 // Функция валидации
 function validateForm($data) {
     $errors = [];
     
+    // 1. ФИО
     if (empty($data['full_name'])) {
-        $errors[] = 'ФИО обязательно';
+        $errors[] = 'ФИО обязательно для заполнения';
     } elseif (!preg_match('/^[а-яА-ЯёЁa-zA-Z\s-]+$/u', $data['full_name'])) {
-        $errors[] = 'ФИО только буквы и пробелы';
+        $errors[] = 'ФИО должно содержать только буквы, пробелы и дефисы';
     } elseif (strlen($data['full_name']) > 150) {
-        $errors[] = 'ФИО максимум 150 символов';
+        $errors[] = 'ФИО не должно превышать 150 символов';
     }
     
+    // 2. Телефон (исправлено: минимум 6 символов)
     if (empty($data['phone'])) {
-        $errors[] = 'Телефон обязателен';
-    } elseif (!preg_match('/^[\+\d\s\-\(\)]{1,20}$/', $data['phone'])) {
-        $errors[] = 'Телефон неверного формата';
+        $errors[] = 'Телефон обязателен для заполнения';
+    } elseif (!preg_match('/^[\+\d\s\-\(\)]{6,20}$/', $data['phone'])) {
+        $errors[] = 'Телефон должен содержать от 6 до 20 символов: цифры, пробелы, дефисы, скобки, +';
     }
     
+    // 3. Email
     if (empty($data['email'])) {
-        $errors[] = 'Email обязателен';
+        $errors[] = 'Email обязателен для заполнения';
     } elseif (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-        $errors[] = 'Email неверного формата';
+        $errors[] = 'Некорректный формат email';
     }
     
+    // 4. Дата рождения
     if (empty($data['birth_date'])) {
         $errors[] = 'Дата рождения обязательна';
     } else {
         $date = DateTime::createFromFormat('Y-m-d', $data['birth_date']);
-        if (!$date || $date > new DateTime()) {
-            $errors[] = 'Дата некорректна';
+        if (!$date || $date->format('Y-m-d') !== $data['birth_date']) {
+            $errors[] = 'Некорректный формат даты';
+        } elseif ($date > new DateTime()) {
+            $errors[] = 'Дата рождения не может быть в будущем';
         }
     }
     
+    // 5. Пол
     if (empty($data['gender'])) {
-        $errors[] = 'Пол обязателен';
+        $errors[] = 'Пол обязателен для выбора';
     } elseif (!in_array($data['gender'], ['male', 'female'])) {
-        $errors[] = 'Недопустимый пол';
+        $errors[] = 'Недопустимое значение пола';
     }
     
+    // 6. Языки
     if (empty($data['languages']) || !is_array($data['languages'])) {
-        $errors[] = 'Выберите язык';
+        $errors[] = 'Выберите хотя бы один язык программирования';
     } else {
         foreach ($data['languages'] as $lang_id) {
-            if (!in_array((int)$lang_id, range(1,12))) {
-                $errors[] = 'Недопустимый язык';
+            if (!in_array((int)$lang_id, range(1, 12))) {
+                $errors[] = 'Выбран недопустимый язык программирования';
                 break;
             }
         }
     }
     
+    // 7. Биография
     if (empty($data['biography'])) {
-        $errors[] = 'Биография обязательна';
+        $errors[] = 'Биография обязательна для заполнения';
     } elseif (strlen($data['biography']) > 5000) {
-        $errors[] = 'Биография максимум 5000 символов';
+        $errors[] = 'Биография не должна превышать 5000 символов';
     }
     
+    // 8. Чекбокс
     if (!isset($data['contract_accepted'])) {
-        $errors[] = 'Примите условия';
+        $errors[] = 'Необходимо подтвердить ознакомление с контрактом';
     }
     
     return $errors;
 }
 
-// GET запрос - показываем форму
+// Если GET запрос - показываем форму
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo "<p class='info'>📋 GET запрос - показываем форму</p>";
     unset($_SESSION['form_data']);
     unset($_SESSION['errors']);
     unset($_SESSION['success_message']);
@@ -88,46 +88,23 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-echo "<p class='info'>📨 POST запрос получен</p>";
-
-// Сохраняем данные
+// Сохраняем данные формы в сессию
 $_SESSION['form_data'] = $_POST;
 
-echo "<h3>📦 Данные из формы:</h3>";
-echo "<pre>";
-print_r($_POST);
-echo "</pre>";
-
 // Валидация
-echo "<h3>🔍 Проверка валидации...</h3>";
 $errors = validateForm($_POST);
 
 if (!empty($errors)) {
-    echo "<p class='error'>❌ Ошибки валидации:</p>";
-    echo "<pre>";
-    print_r($errors);
-    echo "</pre>";
-    
     $_SESSION['errors'] = $errors;
-    echo "<p>🔙 Возвращаем на форму</p>";
-    echo "<script>setTimeout(() => { window.location.href = 'form.php'; }, 3000);</script>";
+    header('Location: form.php');
     exit;
 }
 
-echo "<p class='success'>✅ Валидация пройдена</p>";
-
 // Сохранение в БД
-echo "<h3>💾 Сохраняем в БД...</h3>";
-
 try {
     $pdo = getDB();
-    echo "<p class='success'>✅ Подключение к БД успешно</p>";
     
-    // Проверяем структуру таблицы
-    $columns = $pdo->query("DESCRIBE applications")->fetchAll(PDO::FETCH_COLUMN);
-    echo "<p>📊 Поля таблицы: " . implode(', ', $columns) . "</p>";
-    
-    // Вставка
+    // Вставляем основную информацию
     $stmt = $pdo->prepare("
         INSERT INTO applications 
         (full_name, phone, email, birth_date, gender, biography, contract_accepted) 
@@ -136,9 +113,7 @@ try {
     
     $contract = isset($_POST['contract_accepted']) ? 1 : 0;
     
-    echo "<p>📝 Выполняем запрос с данными:</p>";
-    echo "<pre>";
-    print_r([
+    $stmt->execute([
         $_POST['full_name'],
         $_POST['phone'],
         $_POST['email'],
@@ -147,76 +122,34 @@ try {
         $_POST['biography'],
         $contract
     ]);
-    echo "</pre>";
-    
-    $result = $stmt->execute([
-        $_POST['full_name'],
-        $_POST['phone'],
-        $_POST['email'],
-        $_POST['birth_date'],
-        $_POST['gender'],
-        $_POST['biography'],
-        $contract
-    ]);
-    
-    if (!$result) {
-        throw new Exception("Ошибка выполнения запроса");
-    }
     
     $application_id = $pdo->lastInsertId();
-    echo "<p class='success'>✅ Запись создана! ID: $application_id</p>";
     
-    // Проверяем, что запись действительно есть
-    $check = $pdo->prepare("SELECT * FROM applications WHERE id = ?");
-    $check->execute([$application_id]);
-    $record = $check->fetch();
-    
-    if ($record) {
-        echo "<p class='success'>✅ Запись найдена в БД:</p>";
-        echo "<pre>";
-        print_r($record);
-        echo "</pre>";
-    } else {
-        echo "<p class='error'>❌ Запись НЕ найдена после вставки!</p>";
-    }
-    
-    // Вставка языков
+    // Вставляем языки
     if (!empty($_POST['languages'])) {
-        echo "<p>📝 Вставляем языки:</p>";
         $link_stmt = $pdo->prepare("
             INSERT INTO application_languages (application_id, language_id) 
             VALUES (?, ?)
         ");
         
         foreach ($_POST['languages'] as $lang_id) {
-            echo "  - язык ID: $lang_id<br>";
             $link_stmt->execute([$application_id, $lang_id]);
         }
-        echo "<p class='success'>✅ Языки сохранены</p>";
     }
     
     // Успех
-    $_SESSION['success_message'] = "Анкета успешно сохранена! ID: $application_id";
+    $_SESSION['success_message'] = "Анкета успешно сохранена! ID записи: $application_id";
     unset($_SESSION['form_data']);
     unset($_SESSION['errors']);
     
-    echo "<p class='success'>✅ ГОТОВО! Перенаправляем через 3 секунды...</p>";
-    echo "<script>setTimeout(() => { window.location.href = 'form.php'; }, 3000);</script>";
+    header('Location: form.php');
+    exit;
     
 } catch (Exception $e) {
-    echo "<p class='error'>❌ ОШИБКА: " . $e->getMessage() . "</p>";
-    echo "<pre>";
-    echo "Файл: " . $e->getFile() . "\n";
-    echo "Строка: " . $e->getLine() . "\n";
-    echo "Трассировка:\n" . $e->getTraceAsString();
-    echo "</pre>";
-    
-    error_log("ERROR: " . $e->getMessage());
-    
-    $_SESSION['errors'] = ["Ошибка БД: " . $e->getMessage()];
-    echo "<p>🔙 Возвращаем на форму через 5 секунд...</p>";
-    echo "<script>setTimeout(() => { window.location.href = 'form.php'; }, 5000);</script>";
+    // Ошибка
+    error_log("Database error: " . $e->getMessage());
+    $_SESSION['errors'] = ["Произошла ошибка при сохранении. Пожалуйста, попробуйте позже."];
+    header('Location: form.php');
+    exit;
 }
-
-echo "</body></html>";
 ?>
