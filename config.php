@@ -4,9 +4,9 @@ function getDB() {
     
     if ($pdo === null) {
         $host = 'localhost';
-        $dbname = 'u82277';     
-        $username = 'u82277';     
-        $password = '1452026'; 
+        $dbname = 'u82277';
+        $username = 'u82277';
+        $password = '1452026';
         
         try {
             $pdo = new PDO(
@@ -15,16 +15,13 @@ function getDB() {
                 $password,
                 [
                     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                    PDO::ATTR_EMULATE_PREPARES => false
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
                 ]
             );
         } catch (PDOException $e) {
-            error_log("Database connection error: " . $e->getMessage());
-            die("Ошибка подключения к базе данных. Пожалуйста, попробуйте позже.");
+            die("ОШИБКА ПОДКЛЮЧЕНИЯ: " . $e->getMessage());
         }
     }
-    
     return $pdo;
 }
 ?>
