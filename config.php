@@ -1,5 +1,4 @@
 <?php
-
 function getDB() {
     static $pdo = null;
     
@@ -15,13 +14,12 @@ function getDB() {
                 $username,
                 $password,
                 [
-                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, // Режим ошибок - исключения
-                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC, // Ассоциативные массивы
-                    PDO::ATTR_EMULATE_PREPARES => false // Отключаем эмуляцию подготовленных запросов
+                    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+                    PDO::ATTR_EMULATE_PREPARES => false
                 ]
             );
         } catch (PDOException $e) {
-            // Логируем ошибку и показываем пользователю общее сообщение
             error_log("Database connection error: " . $e->getMessage());
             die("Ошибка подключения к базе данных. Пожалуйста, попробуйте позже.");
         }
@@ -29,3 +27,4 @@ function getDB() {
     
     return $pdo;
 }
+?>
