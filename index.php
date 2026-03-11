@@ -29,7 +29,7 @@ function validateForm($data) {
     
     if (empty($data['phone'])) {
         $errors[] = 'Телефон обязателен';
-    } elseif (!preg_match('/^[\+\d\s\-\(\)]{10,20}$/', $data['phone'])) {
+    } elseif (!preg_match('/^[\+\d\s\-\(\)]{1,20}$/', $data['phone'])) {
         $errors[] = 'Телефон неверного формата';
     }
     
