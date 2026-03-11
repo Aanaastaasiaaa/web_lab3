@@ -1,7 +1,6 @@
 <?php
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
+// Отключаем буферизацию вывода
+ob_start();
 
 session_start();
 require_once 'config.php';
@@ -19,11 +18,11 @@ function validateForm($data) {
         $errors[] = 'ФИО не должно превышать 150 символов';
     }
     
-    // 2. Телефон (исправлено: минимум 6 символов)
+    // 2. Телефон
     if (empty($data['phone'])) {
         $errors[] = 'Телефон обязателен для заполнения';
     } elseif (!preg_match('/^[\+\d\s\-\(\)]{6,20}$/', $data['phone'])) {
-        $errors[] = 'Телефон должен содержать от 6 до 20 символов: цифры, пробелы, дефисы, скобки, +';
+        $errors[] = 'Телефон должен содержать от 6 до 20 символов';
     }
     
     // 3. Email
@@ -38,7 +37,7 @@ function validateForm($data) {
         $errors[] = 'Дата рождения обязательна';
     } else {
         $date = DateTime::createFromFormat('Y-m-d', $data['birth_date']);
-        if (!$date || $date->format('Y-m-d') !== $data['birth_date']) {
+        if (!$date) {
             $errors[] = 'Некорректный формат даты';
         } elseif ($date > new DateTime()) {
             $errors[] = 'Дата рождения не может быть в будущем';
@@ -58,7 +57,7 @@ function validateForm($data) {
     } else {
         foreach ($data['languages'] as $lang_id) {
             if (!in_array((int)$lang_id, range(1, 12))) {
-                $errors[] = 'Выбран недопустимый язык программирования';
+                $errors[] = 'Выбран недопустимый язык';
                 break;
             }
         }
@@ -79,23 +78,25 @@ function validateForm($data) {
     return $errors;
 }
 
-// Если GET запрос - показываем форму
+// GET запрос
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    unset($_SESSION['form_data']);
-    unset($_SESSION['errors']);
-    unset($_SESSION['success_message']);
+    // Очищаем старые данные
+    $_SESSION = array();
+    session_regenerate_id(true);
     include 'form.php';
     exit;
 }
 
-// Сохраняем данные формы в сессию
-$_SESSION['form_data'] = $_POST;
+// Сохраняем данные
+$form_data = $_POST;
 
 // Валидация
-$errors = validateForm($_POST);
+$errors = validateForm($form_data);
 
 if (!empty($errors)) {
     $_SESSION['errors'] = $errors;
+    $_SESSION['form_data'] = $form_data;
+    session_write_close();
     header('Location: form.php');
     exit;
 }
@@ -104,52 +105,74 @@ if (!empty($errors)) {
 try {
     $pdo = getDB();
     
-    // Вставляем основную информацию
+    // Начинаем транзакцию
+    $pdo->beginTransaction();
+    
+    // Вставка
     $stmt = $pdo->prepare("
         INSERT INTO applications 
         (full_name, phone, email, birth_date, gender, biography, contract_accepted) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ");
     
-    $contract = isset($_POST['contract_accepted']) ? 1 : 0;
+    $contract = isset($form_data['contract_accepted']) ? 1 : 0;
     
     $stmt->execute([
-        $_POST['full_name'],
-        $_POST['phone'],
-        $_POST['email'],
-        $_POST['birth_date'],
-        $_POST['gender'],
-        $_POST['biography'],
+        $form_data['full_name'],
+        $form_data['phone'],
+        $form_data['email'],
+        $form_data['birth_date'],
+        $form_data['gender'],
+        $form_data['biography'],
         $contract
     ]);
     
     $application_id = $pdo->lastInsertId();
     
-    // Вставляем языки
-    if (!empty($_POST['languages'])) {
+    // Вставка языков
+    if (!empty($form_data['languages'])) {
         $link_stmt = $pdo->prepare("
             INSERT INTO application_languages (application_id, language_id) 
             VALUES (?, ?)
         ");
         
-        foreach ($_POST['languages'] as $lang_id) {
+        foreach ($form_data['languages'] as $lang_id) {
             $link_stmt->execute([$application_id, $lang_id]);
         }
     }
     
-    // Успех
-    $_SESSION['success_message'] = "Анкета успешно сохранена! ID записи: $application_id";
-    unset($_SESSION['form_data']);
-    unset($_SESSION['errors']);
+    // Подтверждаем транзакцию
+    $pdo->commit();
     
-    header('Location: form.php');
-    exit;
+    // Очищаем сессию полностью
+    $_SESSION = array();
+    session_regenerate_id(true);
+    
+    // Устанавливаем только сообщение об успехе
+    $_SESSION['success_message'] = "Анкета успешно сохранена! ID записи: $application_id";
     
 } catch (Exception $e) {
-    // Ошибка
-    error_log("Database error: " . $e->getMessage());
-    $_SESSION['errors'] = ["Произошла ошибка при сохранении. Пожалуйста, попробуйте позже."];
-    header('Location: form.php');
-    exit;
+    // Откатываем транзакцию
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    
+    // Логируем ошибку
+    error_log("DB Error: " . $e->getMessage());
+    
+    // Очищаем сессию
+    $_SESSION = array();
+    session_regenerate_id(true);
+    
+    // Устанавливаем ошибку
+    $_SESSION['errors'] = ["Ошибка при сохранении. Попробуйте еще раз."];
+    $_SESSION['form_data'] = $form_data;
 }
+
+// Принудительно закрываем сессию
+session_write_close();
+
+// Перенаправляем
+header('Location: form.php');
+exit;
 ?>
