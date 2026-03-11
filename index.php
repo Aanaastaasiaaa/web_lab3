@@ -15,9 +15,9 @@ function validateForm($data) {
         $errors[] = 'ФИО обязательно для заполнения';
     } elseif (!preg_match('/^[а-яА-ЯёЁa-zA-Z\s-]+$/u', $data['full_name'])) {
         $errors[] = 'ФИО должно содержать только буквы, пробелы и дефисы';
-    } elseif (mb_strlen($data['full_name']) > 150) {
-        $errors[] = 'ФИО не должно превышать 150 символов';
-    }
+    } elseif (strlen($data['full_name']) > 150) {
+    $errors[] = 'ФИО не должно превышать 150 символов';
+}
     
     // 2. Валидация телефона
     if (empty($data['phone'])) {
